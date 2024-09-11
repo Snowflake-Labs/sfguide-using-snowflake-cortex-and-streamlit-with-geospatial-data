@@ -119,9 +119,10 @@ weather_daily_north = weather_daily_north.join(postcodes,postcodes['PC_SECT']==w
 
 station_filter = trains_latlon.select('"CrsCode"')
 date_filter = weather_hourly.agg(max('VALIDITY_DATE').alias('MAX'),
+                          min('VALIDITY_DATE').alias('MIN'))
+
+date_filter = weather_hourly.agg(max('VALIDITY_DATE').alias('MAX'),
                           min('VALIDITY_DATE').alias('MIN')).to_pandas()
-
-
 
 with st.form('select_data'):
     col1,col2, = st.columns([0.3,0.7])
