@@ -1,7 +1,7 @@
 # Import python packages
 import streamlit as st
 from snowflake.snowpark.context import get_active_session
-from snowflake.snowpark.functions import col, call_function, lit,concat, parse_json,object_construct
+from snowflake.snowpark.functions import col, call_function, lit,concat, parse_json,object_construct,replace
 from snowflake.snowpark.types import StringType, FloatType, ArrayType, VariantType, DateType
 
 # Write directly to the app
@@ -53,7 +53,7 @@ with st.form('Generate Events'):
     'Generate Synthetic Events based on the following:'
     col1,col2, col3,col4 = st.columns(4)
     with col1:
-        model = st.selectbox('Choose Model',['mixtral-8x7b'])
+        model = st.selectbox('Choose Model',['mistral-large2'])
     with col2:
         mp = st.selectbox('Choose MP: ',mps)
     with col3:
@@ -97,6 +97,9 @@ if submitted:
     
 
     generated = filtered_data.with_column('generated_events',mistral)
+
+    generated = generated.with_column('generated_events',replace(col('generated_events'),lit('''```json'''),lit('')))
+    generated = generated.with_column('generated_events',replace(col('generated_events'),lit('''```'''),lit('')))
     #st.write(generated)
     generated = generated.select('MP',parse_json('GENERATED_EVENTS').alias('GENERATED_EVENTS'))
     generated = generated.with_column('INCIDENT_TYPE',lit(activity))
@@ -192,7 +195,7 @@ try:
 
     st.markdown(''' #### NEWLY GENERATED SOCIAL MEDIA ''')
 
-    
+    #### SOCIAL MEDIA DATA
     
     social_media = session.create_dataframe([0])
     json = '''{"date","YYYY-MM-DD","post","abcdefg","sentiment_score",0.2,"username","bob"}'''
@@ -203,7 +206,10 @@ try:
     lit('Add a date, username and relevant emojis to each post.\
     Include emotion.  Return the results as a json object and include sentiment scores.')
            ,lit('use the following json template to structure the data'),lit(json))).astype(VariantType()))
+    
 
+    social_media = social_media.with_column('V',replace(col('V'),lit('''```json'''),lit('')))
+    social_media = social_media.with_column('V',replace(col('V'),lit('''```'''),lit('')))
     
     smedia = social_media.join_table_function('flatten',parse_json('V')).select('VALUE')
     smedia = smedia.select(object_construct(lit('INCIDENT_TYPE'),lit(flattenpd.INCIDENT_TYPE.iloc[record]),lit('MP'),lit(MP),lit('DATA'),col('VALUE')).alias('V'))
@@ -237,3 +243,5 @@ try:
     st.write(session.table('DATA.V_SOCIAL_MEDIA'))
 except:
     st.info('No Results Found')
+    
+         
