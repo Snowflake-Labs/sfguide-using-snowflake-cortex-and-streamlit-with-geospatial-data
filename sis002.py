@@ -8,14 +8,55 @@ import numpy as np
 import pydeck as pdk
 st.set_page_config(layout="wide")
 # Write directly to the app
-st.title("UK Analytics within the North of England :train:")
+st.markdown('<h1 class="heading">VISUALISE LOCATION DATA</h2>', unsafe_allow_html=True)
 st.write(
-    """This app shows key insight of places and events that may effect Northern Trains).
-    """
-)
+    """<BR> This app shows key insight of places and events that may effect Northern Trains).
+    """,unsafe_allow_html=True)
+
 
 # Get the current credentials
 session = get_active_session()
+
+st.markdown(
+    """
+    <style>
+    .heading{
+        background-color: rgb(41, 181, 232);  /* light blue background */
+        color: white;  /* white text */
+        padding: 60px;  /* add padding around the content */
+    }
+    .tabheading{
+        background-color: rgb(41, 181, 232);  /* light blue background */
+        color: white;  /* white text */
+        padding: 10px;  /* add padding around the content */
+    }
+    .veh1 {
+        color: rgb(125, 68, 207);  /* purple */
+    }
+    .veh2 {
+        color: rgb(212, 91, 144);  /* pink */
+    }
+    .veh3 {
+        color: rgb(255, 159, 54);  /* orange */
+    }
+    .veh4 {
+        padding: 10px;  /* add padding around the content */
+        color: rgb(0,53,69);  /* midnight */
+    }
+    
+    body {
+        color: rgb(0,53,69);
+    }
+    
+    div[role="tablist"] > div[aria-selected="true"] {
+        background-color: rgb(41, 181, 232);
+        color: rgb(0,53,69);  /* Change the text color if needed */
+    }
+    
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 trains_latlon = session.table('NORTHERN_TRAINS_STATION_DATA.TESTING."StationLatLong"')
 
@@ -51,18 +92,19 @@ places = places.filter(col('ADDRESSES')['list'][0]['element']['country'] =='GB')
 
 places = places.select(col('NAMES')['primary'].astype(StringType()).alias('NAME'),
                         col('PHONES')['list'][0]['element'].astype(StringType()).alias('PHONE'),
-                      col('CATEGORIES')['main'].astype(StringType()).alias('CATEGORY'),
+                      col('CATEGORIES')['primary'].astype(StringType()).alias('CATEGORY'),
                         col('CATEGORIES')['alternate']['list'][0]['element'].astype(StringType()).alias('ALTERNATE'),
                     col('websites')['list'][0]['element'].astype(StringType()).alias('WEBSITE'),
                       col('GEOMETRY'))
 
 places = places.filter(col('CATEGORY') =='restaurant')
 
+
 places = places.join(envelope,call_function('ST_WITHIN',places['GEOMETRY'],envelope['boundary']))
 places = places.with_column('LON',call_function('ST_X',col('GEOMETRY')))
 places = places.with_column('LAT',call_function('ST_Y',col('GEOMETRY')))
-
 placespd = places.to_pandas()
+
 
 trains_latlon_renamed = trains_latlon
 
@@ -70,12 +112,12 @@ trains_latlon_renamed = trains_latlon_renamed.with_column_renamed('"CrsCode"','N
 trains_latlon_renamed = trains_latlon_renamed.with_column_renamed('"Latitude"','LAT')
 trains_latlon_renamed = trains_latlon_renamed.with_column_renamed('"Longitude"','LON')
 
-station_info = session.table('BUILD_UK.DATA.TRAIN_STATION_INFORMATION')
+station_info = session.table('DATA.TRAIN_STATION_INFORMATION')
 
 trains_latlon_renamed = trains_latlon_renamed.join(station_info,station_info['"CRS Code"']==trains_latlon_renamed['NAME']).drop('"CRS Code"')
 trains_latlon_renamed_pd = trains_latlon_renamed.to_pandas()
 
-events = session.table('BUILD_UK.DATA.EVENTS_IN_THE_NORTH')
+events = session.table('DATA.EVENTS_IN_THE_NORTH')
 events = events.join_table_function('flatten',parse_json('EVENT_DATA')).select('VALUE')
 events=events.with_column('NAME',col('VALUE')['NAME'].astype(StringType()))
 events=events.with_column('DESCRIPTION',col('VALUE')['DESCRIPTION'].astype(StringType()))
@@ -90,7 +132,7 @@ events = events.with_column('B',col('COLOR')[2])
 events = events.with_column_renamed('DESCRIPTION','ALTERNATE')
 eventspd = events.group_by('H3','NAME','ALTERNATE','R','G','B').count().to_pandas()
 
-incident_table = session.table('BUILD_UK.DATA.INCIDENTS')
+incident_table = session.table('DATA.INCIDENTS')
 flatten = incident_table.select('MP','INCIDENT_TYPE',parse_json('GENERATED_EVENTS').alias('JSON'))
 flatten = flatten.join_table_function('FLATTEN',col('JSON')['incidents'])
 flatten = flatten.select('MP',col('INCIDENT_TYPE').alias('NAME'),'VALUE')
@@ -121,13 +163,15 @@ polygon_layer = pdk.Layer(
             pickable=False,
         )
 
- 
+
 poi_l = pdk.Layer(
             'ScatterplotLayer',
             data=placespd,
+            opacity=0.8,
             get_position='[LON, LAT]',
             get_color='[255,255,255]',
-            get_radius=600,
+            radius_min_pixels=3,
+            radius_max_pixels=6,
             pickable=True)
 
 
@@ -135,8 +179,10 @@ nw_trains_l = pdk.Layer(
             'ScatterplotLayer',
             data=trains_latlon_renamed_pd,
             get_position='[LON, LAT]',
-            get_color='[0,187,2]',
-            get_radius=600,
+            get_color='[41,181,232]',
+            radius_min_pixels=3,
+            radius_max_pixels=20,
+            get_radius=4,
             pickable=True)
 
 h3_events = pdk.Layer(
@@ -149,7 +195,7 @@ h3_events = pdk.Layer(
         get_hexagon="H3",
         get_fill_color=["255-R","255-G","255-B"],
         line_width_min_pixels=2,
-        opacity=0.4)
+        opacity=0.3)
 
 
 
@@ -173,7 +219,7 @@ tooltip = {
     }
     }
     
-letters = session.table('BUILD_UK.DATA.LETTERS_TO_MP')
+letters = session.table('DATA.LETTERS_TO_MP')
 mps = letters.select('MP').distinct()
 selected_mp = st.selectbox('Choose MP:',mps)
 letterspd = letters.filter(col('MP')==lit(selected_mp)).to_pandas()
@@ -183,7 +229,7 @@ st.divider()
 col1,col2 = st.columns([0.5,0.5])
 
 with col1:
-    st.markdown('##### MAP OF EVENTS WITH ALL EFFECTED STATIONS AND RESTAURANTS')
+    st.markdown('<h4 class="veh1">MAP OF EVENTS WITH STATIONS AND RESTAURANTS</h2>', unsafe_allow_html=True)
     st.pydeck_chart(pdk.Deck(
     map_style=None,
     initial_view_state=pdk.ViewState(
@@ -193,16 +239,16 @@ with col1:
         height=750
         ),
     
-    layers= [polygon_layer, poi_l, h3_events,nw_trains_l,incidents_layer ], tooltip = tooltip
+    layers= [polygon_layer, poi_l,nw_trains_l,h3_events,incidents_layer], tooltip = tooltip
 
     ))
     st.caption('Hover for more info')
 with col2:
-    st.markdown('#### LETTER TO CHOSEN MP')
+    st.markdown('<h4 class="veh1">LETTERS TO MP</h2>', unsafe_allow_html=True)
     st.write(letterspd.LETTER.iloc[0])
     st.divider()
 
 social_media = session.table('DATA.V_SOCIAL_MEDIA').filter(col('MP')==selected_mp)
 
-st.markdown('##### SOCIAL MEDIA')
+st.markdown('<h4 class="veh1">SOCIAL MEDIA</h2>', unsafe_allow_html=True)
 st.table(social_media.drop('V'))
