@@ -4,21 +4,62 @@ from snowflake.snowpark.context import get_active_session
 from snowflake.snowpark.functions import col, call_function, lit,concat, parse_json,object_construct,replace
 from snowflake.snowpark.types import StringType, FloatType, ArrayType, VariantType, DateType
 
+
+
 # Write directly to the app
 
 
 # Get the current credentials
 session = get_active_session()
 
-col1,col2 = st.columns([0.2,0.8])
-with col1:
-    st.image('https://cdn.prgloo.com/web/NorthernRail/NorthernNewLogo.png')
-
-with col2:
-    st.title("EVENT SIMULATOR")
-st.write(
-    """Here are all the events and what places are potentially effected again).
+st.markdown(
     """
+    <style>
+    .heading{
+        background-color: rgb(41, 181, 232);  /* light blue background */
+        color: white;  /* white text */
+        padding: 60px;  /* add padding around the content */
+    }
+    .tabheading{
+        background-color: rgb(41, 181, 232);  /* light blue background */
+        color: white;  /* white text */
+        padding: 10px;  /* add padding around the content */
+    }
+    .veh1 {
+        color: rgb(125, 68, 207);  /* purple */
+    }
+    .veh2 {
+        color: rgb(212, 91, 144);  /* pink */
+    }
+    .veh3 {
+        color: rgb(255, 159, 54);  /* orange */
+    }
+    .veh4 {
+        padding: 10px;  /* add padding around the content */
+        color: rgb(0,53,69);  /* midnight */
+    }
+    
+    body {
+        color: rgb(0,53,69);
+    }
+    
+    div[role="tablist"] > div[aria-selected="true"] {
+        background-color: rgb(41, 181, 232);
+        color: rgb(0,53,69);  /* Change the text color if needed */
+    }
+    
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+col1,col2 = st.columns([0.2,0.8])
+
+
+st.markdown('<h1 class="heading">EVENT SIMULATOR</h2>', unsafe_allow_html=True)
+st.write(
+    """<BR>Here are all the events and what places are potentially affected again.
+    """,unsafe_allow_html=True
 )
 
 
@@ -34,6 +75,15 @@ with st.expander("View Prompt Information"):
                                      width='medium')   
                                         }
               )
+
+st.markdown('<h4 class="veh1">GENERATE SYNTHETIC EVENTS</h2>', unsafe_allow_html=True)
+st.markdown(
+    """ 
+    Create synthetic events based on a mixture of Activity types. \
+    The options are Overcrowding, Food Poisoning, Train Incidents and Fights. <BR><BR>\
+    Once complete scrolL down to indidual incidents and wait for social media data to generate
+
+    """,unsafe_allow_html=True)
 
 
 
@@ -98,14 +148,14 @@ if submitted:
 
     generated = filtered_data.with_column('generated_events',mistral)
 
-    generated = generated.with_column('generated_events',replace(col('generated_events'),lit('''```json'''),lit('')))
-    generated = generated.with_column('generated_events',replace(col('generated_events'),lit('''```'''),lit('')))
+    generated = generated.with_column('generated_events',replace(col('generated_events'),'''```json''',lit('')))
+    generated = generated.with_column('generated_events',replace(col('generated_events'),'''```''',''))
     #st.write(generated)
     generated = generated.select('MP',parse_json('GENERATED_EVENTS').alias('GENERATED_EVENTS'))
     generated = generated.with_column('INCIDENT_TYPE',lit(activity))
     #st.write(generated)
 
-    sql2 = '''create table if not exists BUILD_UK.DATA.INCIDENTS (MP VARCHAR(255),
+    sql2 = '''create table if not exists DATA.INCIDENTS (MP VARCHAR(255),
             GENERATED_EVENTS VARIANT,
          INCIDENT_TYPE VARCHAR(255))'''
     
@@ -114,17 +164,17 @@ if submitted:
 
     
 
-    st.markdown('##### NEW EVENTS')
+    st.markdown('<h4 class="veh1">NEW EVENTS</h2>', unsafe_allow_html=True)
 
     st.dataframe(generated)
 
-st.markdown('#### GENERATED EVENTS')
+st.markdown('<h4 class="veh1">GENERATED EVENTS</h2>', unsafe_allow_html=True)
 
 
 try:
     
     incident_table = session.table('DATA.INCIDENTS')
-    st.markdown('##### ALL GENERATED EVENTS')
+    st.markdown('<h4 class="veh1">ALL GENERATED EVENTS</h2>', unsafe_allow_html=True)
     
     sql = 'DROP TABLE DATA.INCIDENTS'
 
@@ -172,7 +222,7 @@ try:
 
     st.divider()
 
-    st.markdown('#### INDIVIDUAL INCIDENTS')
+    st.markdown('<h4 class="veh1">INDIVIDUAL INCIDENTS</h2>', unsafe_allow_html=True)
     MP = st.selectbox('Choose MP:',flatten.select('MP').distinct())
     flatten = flatten.filter(col('MP')==MP)
     
@@ -193,7 +243,7 @@ try:
 
     st.divider()
 
-    st.markdown(''' #### NEWLY GENERATED SOCIAL MEDIA ''')
+    st.markdown('<h4 class="veh1">NEWLY GENERATED SOCIAL MEDIA</h2>', unsafe_allow_html=True)
 
     #### SOCIAL MEDIA DATA
     
@@ -208,8 +258,8 @@ try:
            ,lit('use the following json template to structure the data'),lit(json))).astype(VariantType()))
     
 
-    social_media = social_media.with_column('V',replace(col('V'),lit('''```json'''),lit('')))
-    social_media = social_media.with_column('V',replace(col('V'),lit('''```'''),lit('')))
+    social_media = social_media.with_column('V',replace(col('V'),'''```json''',lit('')))
+    social_media = social_media.with_column('V',replace(col('V'),'''```''',''))
     
     smedia = social_media.join_table_function('flatten',parse_json('V')).select('VALUE')
     smedia = smedia.select(object_construct(lit('INCIDENT_TYPE'),lit(flattenpd.INCIDENT_TYPE.iloc[record]),lit('MP'),lit(MP),lit('DATA'),col('VALUE')).alias('V'))
@@ -231,7 +281,7 @@ except:
 
 
 try:
-    st.markdown(''' #### ALL SOCIAL MEDIA POSTINGS ''')
+    st.markdown('<h4 class="veh1">ALL SOCIAL MEDIAL POSTINGS</h2>', unsafe_allow_html=True)
     smediaV = session.table('DATA.SOCIAL_MEDIA')
     smediaV = smediaV.with_column('"Date"',col('V')['DATA']['date'].astype(DateType()))
     smediaV = smediaV.with_column('"Post"',col('V')['DATA']['post'].astype(StringType()))
@@ -243,5 +293,13 @@ try:
     st.write(session.table('DATA.V_SOCIAL_MEDIA'))
 except:
     st.info('No Results Found')
+
+st.markdown('<h4 class="veh1">WHATS NEXT</h2>', unsafe_allow_html=True)
+
+st.markdown(
+    """
+    Go to the **ANALYSE_GEO_WITH_CORTEX** notebook to see how Cortex Search can make sense of this generated Unstructured Text
+
+    """,unsafe_allow_html=True)
     
          
